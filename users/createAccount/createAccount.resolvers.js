@@ -1,8 +1,7 @@
+import client from '../../client';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
-import client from '../client';
 
-export default{
+export default {
     Mutation: {
         createAccount: async (_, {firstName, lastName, email, username, password}) => {
             try {
@@ -22,32 +21,21 @@ export default{
                     throw new Error("this email or username is already taken.")
                 }
                 const uglyPassword = await bcrypt.hash(password, 10);
-                return client.user.create({data: {
+                const user = await client.user.create({data: {
                     firstName, lastName, username, email, password: uglyPassword
                 }});
+                if(user.id){
+                    return {
+                        ok: true,
+                    }
+                } else {
+                    return {
+                        ok: false,
+                        error: "cannot create account."
+                    }
+                }
             } catch(e) {
                 return e
-            }
-        },
-        login: async (_, {username, password}) => {
-            const user = await client.user.findUnique({where: {username}})
-            if(!user){
-                return {
-                    ok: false,
-                    error: "username not found."
-                }
-            }
-            const passwordOk = await bcrypt.compare(password, user.password);
-            if(!passwordOk) {
-                return {
-                    ok: false,
-                    error: 'Wrong Password.'
-                }
-            }
-            const token = await jwt.sign({id: user.id}, process.env.PRIVATE_KEY);
-            return {
-                ok: true,
-                token,
             }
         },
     }
