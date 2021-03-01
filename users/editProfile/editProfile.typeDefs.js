@@ -11,6 +11,8 @@ export default gql`
             lastName: String
             email: String
             username: String
+            bio: String
+            avatar: Upload
             password: String
         ): EditProfileResult!
     }

@@ -1,37 +1,50 @@
+import {createWriteStream} from 'fs';
 import client from '../../client';
-import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
+import { protectedResolver } from '../user.utils';
+
+const resolverfun = async (_, {firstName, lastName, email, username, bio, avatar, password: newPassword}, {loggedInUser}) => {
+    let avatarUrl = null;
+    if (avatar) {
+        const {filename, createReadStream} = await avatar;
+        const newFilename = `${loggedInUser.id}-${Date.now()}-${filename}`;
+        const readStream = createReadStream();
+        const writeStream = createWriteStream(process.cwd() + '/uploads/' + newFilename);
+        readStream.pipe(writeStream);
+        avatarUrl = `http://localhost:4000/static/${newFilename}`;
+    }
+    let uglyPassword = null;
+    if (newPassword) {
+        uglyPassword = await bcrypt.hash(newPassword, 10);
+    }
+    const updatedUser = await client.user.update({
+        where: {
+            id: loggedInUser.id,
+        },
+        data: {
+            firstName,
+            lastName,
+            email,
+            username,
+            bio,
+            ...(uglyPassword && {password: uglyPassword}),
+            ...(avatarUrl && {avatar: avatarUrl})
+        }
+    });
+    if (updatedUser.id) {
+        return {
+            ok: true,
+        }
+    } else {
+        return {
+            ok: false,
+            error: "Could not update the Profile."
+        }
+    }
+}
 
 export default {
     Mutation: {
-        editProfile: async (_, {firstName, lastName, email, username, password: newPassword}, {token}) => {
-            const {id} = jwt.verify(token, process.env.PRIVATE_KEY);
-            let uglyPassword = null;
-            if (newPassword) {
-                uglyPassword = await bcrypt.hash(newPassword, 10);
-            }
-            const updatedUser = await client.user.update({
-                where: {
-                    id,
-                },
-                data: {
-                    firstName,
-                    lastName,
-                    email,
-                    username,
-                    ...(uglyPassword && {password: uglyPassword})
-                }
-            });
-            if (updatedUser.id) {
-                return {
-                    ok: true,
-                }
-            } else {
-                return {
-                    ok: false,
-                    error: "Could not update the Profile."
-                }
-            }
-        }
+        editProfile: protectedResolver(resolverfun)
     }
 }
